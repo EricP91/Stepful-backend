@@ -73,3 +73,7 @@ Contributions are welcome! Please submit a pull request with your changes.
 ## License
 
 This application is licensed under the ISC License.
+
+## System Design
+
+![Design](./stepful-system-design.png)
