@@ -4,18 +4,23 @@ const pool = require("../config/database");
 
 const login = async (req, res) => {
   const { username, password } = req.body;
+
   try {
     const result = await pool.query(
-      "SELECT * FROM public.users WHERE user_name = $1",
+      "SELECT *, r.role_name FROM users u INNER JOIN roles r ON u.user_role = r.role_id WHERE user_name = $1",
       [username]
     );
     const user = result.rows[0];
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    const isPasswordValid = user.password === password;
-    if (!isPasswordValid)
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
       return res.status(401).json({ message: "Invalid credentials" });
+    }
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
@@ -30,7 +35,7 @@ const login = async (req, res) => {
       sameSite: "Strict",
       maxAge: 60 * 60 * 1000 * 2,
     });
-    res.json({ message: "Login successful", token });
+    res.json({ message: "Login successful", token, role_name: user.role_name });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -44,7 +49,10 @@ const findUserById = async (req, res) => {
       [req.user.id]
     );
     const user = result.rows[0];
-    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     res.json({ user });
   } catch (err) {
@@ -53,7 +61,7 @@ const findUserById = async (req, res) => {
   }
 };
 
-const findUserByName = async (username) => {
+const findUserIdByName = async (username) => {
   const query = `SELECT user_id FROM users WHERE user_name = $1`;
   const values = [username];
 
@@ -69,14 +77,33 @@ const findUserByName = async (username) => {
   }
 };
 
+const getUsersByRole = async (req, res) => {
+  const { role } = req.params;
+  const query = `SELECT u.user_id, u.user_name FROM users u INNER JOIN roles r ON u.user_role = r.role_id WHERE r.role_name = $1`;
+  const values = [role];
+
+  try {
+    const result = await pool.query(query, values);
+    if (!result.rows) {
+      return res.status(404).json({ message: "No users found" });
+    }
+
+    res.json({ users: result.rows });
+  } catch (error) {
+    console.error("Error finding users:", error.message);
+    throw new Error("Database query failed");
+  }
+};
 
 const logout = (req, res) => {
+  res.clearCookie("token");
   res.json({ message: "Logout successful" });
 };
 
 module.exports = {
   login,
   findUserById,
-  findUserByName,
+  findUserIdByName,
   logout,
+  getUsersByRole,
 };

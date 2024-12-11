@@ -1,21 +1,25 @@
 const pool = require("../config/database");
-const { findUserByName } = require("./usersController");
+const { findUserIdByName } = require("./usersController");
+const { sortSlots } = require("../utils");
 
 const scheduleSessionByCoach = async (req, res) => {
   const { user_name, slots } = req.body;
+
   if (!user_name || !slots) {
     return res.status(400).json({ message: "Username and slots are required" });
   }
+
   try {
-    const coachId = await findUserByName(user_name);
+    const coachId = await findUserIdByName(user_name);
+    if (!coachId) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const slotsValues = slots.map((slot) => ({
       coach_id: coachId,
       start_time: slot,
     }));
 
-    if (!coachId) {
-      return res.status(404).json({ message: "User not found" });
-    }
     const query = `
       INSERT INTO slots (coach_id, start_time)
       VALUES ${slotsValues
@@ -23,10 +27,9 @@ const scheduleSessionByCoach = async (req, res) => {
           (slotsValue) => `(${slotsValue.coach_id}, '${slotsValue.start_time}')`
         )
         .join(", ")}
-      RETURNING *;
     `;
-    const result = await pool.query(query);
 
+    const result = await pool.query(query);
     res.status(201).json({
       message: "Slot stored successfully",
       data: result.rows,
@@ -39,24 +42,27 @@ const scheduleSessionByCoach = async (req, res) => {
 
 const getSlotsByCoach = async (req, res) => {
   const { user_name } = req.params;
+
   if (!user_name) {
     return res.status(400).json({ message: "Username is required" });
   }
+
   try {
-    const coachId = await findUserByName(user_name);
+    const coachId = await findUserIdByName(user_name);
     if (!coachId) {
       return res.status(404).json({ message: "User not found" });
     }
+
     const query = `
       SELECT * FROM slots
       WHERE coach_id = $1
     `;
     const values = [coachId];
-    const result = await pool.query(query, values);
 
+    const result = await pool.query(query, values);
     res.status(200).json({
       message: "Slots retrieved successfully",
-      data: result.rows,
+      data: sortSlots(result.rows),
     });
   } catch (err) {
     console.error(err);
@@ -64,10 +70,13 @@ const getSlotsByCoach = async (req, res) => {
   }
 };
 
-const getSlotsByCoachAndTime = async (req, res) => {
+const getSlotDetailByCoachAndTime = async (req, res) => {
   const { coachName, startTime } = req.query;
+
   if (!coachName || !startTime) {
-    return res.status(400).json({ message: "coachName and startTime are required" });
+    return res
+      .status(400)
+      .json({ message: "coachName and startTime are required" });
   }
 
   const query = `
@@ -79,6 +88,7 @@ const getSlotsByCoachAndTime = async (req, res) => {
     WHERE u.user_name = $1 AND s.start_time = $2;
   `;
   const values = [coachName, startTime];
+
   try {
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -91,8 +101,46 @@ const getSlotsByCoachAndTime = async (req, res) => {
   }
 };
 
+const bookSession = async (req, res) => {
+  const { user_name, slot_id } = req.body;
+
+  if (!user_name || !slot_id) {
+    return res
+      .status(400)
+      .json({ message: "slotId and userId are required" });
+  }
+
+  try {
+    const studentId = await findUserIdByName(user_name);
+    if (!studentId) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updateQuery = `
+      UPDATE slots
+      SET booked_by = $1
+      WHERE id = $2
+      RETURNING *;
+    `;
+    const updateResult = await pool.query(updateQuery, [studentId, slot_id]);
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ message: "Slot not found" });
+    }
+
+    res.status(200).json({
+      message: "Slot booked successfully",
+      slot: updateResult.rows[0],
+    });
+  } catch (error) {
+    console.error("Error booking slot:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   scheduleSessionByCoach,
-  getSlotsByCoachAndTime,
+  getSlotDetailByCoachAndTime,
   getSlotsByCoach,
+  bookSession,
 };
