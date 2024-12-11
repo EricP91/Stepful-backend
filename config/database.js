@@ -5,7 +5,6 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Test the connection
 const testConnection = async () => {
   try {
     const res = await pool.query("SELECT NOW()");
@@ -18,7 +17,5 @@ const testConnection = async () => {
   }
 };
 
-// Run the test
 testConnection();
-
 module.exports = pool;
