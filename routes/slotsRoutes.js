@@ -16,8 +16,8 @@ slotsRouter.post("/slots/book", bookSession);
 
 slotsRouter.post("/calls/feedback", leaveFeedback);
 
-slotsRouter.get("/slots/:user_name", getSlotsByCoach);
-slotsRouter.get("/slots/booked/:user_name", getSlotsByStudent);
+slotsRouter.get("/slots/:userName", getSlotsByCoach);
+slotsRouter.get("/slots/booked/:userName", getSlotsByStudent);
 
 slotsRouter.get("/slot", getSlotDetailByCoachAndTime);
 

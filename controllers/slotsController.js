@@ -21,7 +21,7 @@ const scheduleSessionByCoach = async (req, res) => {
     }));
 
     const query = `
-      INSERT INTO slots (coachId, startTime)
+      INSERT INTO slots (coach_id, start_time)
       VALUES ${slotsValues
         .map(
           (slotsValue) => `(${slotsValue.coachId}, '${slotsValue.startTime}')`
@@ -32,7 +32,11 @@ const scheduleSessionByCoach = async (req, res) => {
     const result = await pool.query(query);
     res.status(201).json({
       message: "Slot stored successfully",
-      data: result.rows,
+      data: result.rows.map((slot) => ({
+        slotId: slot.slot_id,
+        coachId: slot.coach_id,
+        startTime: slot.start_time,
+      })),
     });
   } catch (err) {
     console.error(err);
@@ -55,14 +59,20 @@ const getSlotsByCoach = async (req, res) => {
 
     const query = `
       SELECT * FROM slots
-      WHERE coachId = $1
+      WHERE coach_id = $1
     `;
     const values = [userId];
     const result = await pool.query(query, values);
 
     res.status(200).json({
       message: "Slots retrieved successfully",
-      data: sortSlots(result.rows),
+      data: sortSlots(result.rows).map((slot) => ({
+        slotId: slot.slot_id,
+        coachId: slot.coach_id,
+        startTime: slot.start_time,
+        bookedBy: slot.booked_by,
+        courseInfo: slot.course_info,
+      })),
     });
   } catch (err) {
     console.error(err);
@@ -85,14 +95,20 @@ const getSlotsByStudent = async (req, res) => {
 
     const query = `
       SELECT * FROM slots
-      WHERE bookedBy = $1
+      WHERE booked_by = $1
     `;
     const values = [userId];
     const result = await pool.query(query, values);
 
     res.status(200).json({
       message: "Slots retrieved successfully",
-      data: sortSlots(result.rows),
+      data: sortSlots(result.rows).map((slot) => ({
+        slotId: slot.slot_id,
+        coachId: slot.coach_id,
+        startTime: slot.start_time,
+        bookedBy: slot.booked_by,
+        courseInfo: slot.course_info,
+      })),
     });
   } catch (err) {
     console.error(err);
@@ -110,11 +126,11 @@ const getSlotDetailByCoachAndTime = async (req, res) => {
   }
 
   const query = `
-    SELECT s.id, s.startTime, b.phoneNumber AS studentPhoneNumber, u.phoneNumber AS coachPhoneNumber, b.userName AS bookedByName, u.userName, r.score, r.notes, s.courseInfo
+    SELECT s.slot_id, s.start_time, b.phone_number AS student_phone_number, u.phone_number AS coach_phone_number, b.user_name AS booked_by_name, u.user_name AS user_name, r.score, r.notes, s.course_info
     FROM slots s
-    INNER JOIN users u ON s.coachId = u.userId
-    LEFT JOIN users b ON s.bookedyId = b.userId
-    LEFT JOIN reviews r ON s.id = r.slot_id
+    INNER JOIN users u ON s.coach_id = u.user_id
+    LEFT JOIN users b ON s.booked_by = b.user_id
+    LEFT JOIN reviews r ON s.slot_id = r.slot_id
     WHERE u.user_id = $1 AND s.start_time = $2;
   `;
   const values = [coachId, startTime];
@@ -124,7 +140,19 @@ const getSlotDetailByCoachAndTime = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "No matching slots found" });
     }
-    res.status(200).json(result.rows[0]);
+    const slotInfo = result.rows[0];
+
+    res.status(200).json({
+      id: slotInfo.slot_id,
+      startTime: slotInfo.start_time,
+      studentPhoneNumber: slotInfo.student_phone_number,
+      coachPhoneNumber: slotInfo.coach_phone_number,
+      bookedByName: slotInfo.booked_by_name,
+      userName: slotInfo.user_name,
+      score: slotInfo.score,
+      notes: slotInfo.notes,
+      courseInfo: slotInfo.course_info,
+    });
   } catch (error) {
     console.error("Error fetching slots:", error.message);
     throw new Error("Failed to fetch slots");
@@ -146,8 +174,8 @@ const bookSession = async (req, res) => {
 
     const updateQuery = `
       UPDATE slots
-      SET bookedBy = $1
-      WHERE id = $2
+      SET booked_by = $1
+      WHERE slot_id = $2
       RETURNING *;
     `;
     const updateResult = await pool.query(updateQuery, [studentId, slotId]);
@@ -158,7 +186,13 @@ const bookSession = async (req, res) => {
 
     res.status(200).json({
       message: "Slot booked successfully",
-      slot: updateResult.rows[0],
+      slot: {
+        slotId: updateResult.rows[0].slot_id,
+        coachId: updateResult.rows[0].coach_id,
+        startTime: updateResult.rows[0].start_time,
+        bookedBy: updateResult.rows[0].booked_by,
+        courseInfo: updateResult.rows[0].course_info,
+      },
     });
   } catch (error) {
     console.error("Error booking slot:", error.message);
@@ -175,7 +209,7 @@ const leaveFeedback = async (req, res) => {
 
   try {
     const insertQuery = `
-    INSERT INTO reviews (slotId, score, notes) VALUES ($1, $2, $3)
+    INSERT INTO reviews (slot_id, score, notes) VALUES ($1, $2, $3)
     RETURNING *;`;
     const result = await pool.query(insertQuery, [slotId, score, notes]);
 
@@ -185,7 +219,11 @@ const leaveFeedback = async (req, res) => {
 
     res.status(200).json({
       message: "Leave feedback successfully",
-      slot: result.rows[0],
+      slot: {
+        slotId: result.rows[0].slot_id,
+        score: result.rows[0].score,
+        notes: result.rows[0].notes,
+      },
     });
   } catch (error) {
     console.error("Error booking slot:", error.message);
