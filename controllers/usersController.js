@@ -35,7 +35,7 @@ const login = async (req, res) => {
       sameSite: "Strict",
       maxAge: 60 * 60 * 1000 * 2,
     });
-    res.json({ message: "Login successful", token, role_name: user.role_name });
+    res.json({ message: "Login successful", token, role_name: user.role_name, user_id: user.user_id });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
