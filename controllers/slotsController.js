@@ -3,28 +3,28 @@ const { findUserIdByName } = require("./usersController");
 const { sortSlots } = require("../utils");
 
 const scheduleSessionByCoach = async (req, res) => {
-  const { user_name, slots } = req.body;
+  const { userName, slots } = req.body;
 
-  if (!user_name || !slots) {
+  if (!userName || !slots) {
     return res.status(400).json({ message: "Username and slots are required" });
   }
 
   try {
-    const coachId = await findUserIdByName(user_name);
+    const coachId = await findUserIdByName(userName);
     if (!coachId) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const slotsValues = slots.map((slot) => ({
-      coach_id: coachId,
-      start_time: slot,
+      coachId: coachId,
+      startTime: slot,
     }));
 
     const query = `
-      INSERT INTO slots (coach_id, start_time)
+      INSERT INTO slots (coachId, startTime)
       VALUES ${slotsValues
         .map(
-          (slotsValue) => `(${slotsValue.coach_id}, '${slotsValue.start_time}')`
+          (slotsValue) => `(${slotsValue.coachId}, '${slotsValue.startTime}')`
         )
         .join(", ")}
     `;
@@ -41,21 +41,21 @@ const scheduleSessionByCoach = async (req, res) => {
 };
 
 const getSlotsByCoach = async (req, res) => {
-  const { user_name } = req.params;
+  const { userName } = req.params;
 
-  if (!user_name) {
+  if (!userName) {
     return res.status(400).json({ message: "Username is required" });
   }
 
   try {
-    const userId = await findUserIdByName(user_name);
+    const userId = await findUserIdByName(userName);
     if (!userId) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const query = `
       SELECT * FROM slots
-      WHERE coach_id = $1
+      WHERE coachId = $1
     `;
     const values = [userId];
     const result = await pool.query(query, values);
@@ -71,21 +71,21 @@ const getSlotsByCoach = async (req, res) => {
 };
 
 const getSlotsByStudent = async (req, res) => {
-  const { user_name } = req.params;
+  const { userName } = req.params;
 
-  if (!user_name) {
+  if (!userName) {
     return res.status(400).json({ message: "Username is required" });
   }
 
   try {
-    const userId = await findUserIdByName(user_name);
+    const userId = await findUserIdByName(userName);
     if (!userId) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const query = `
       SELECT * FROM slots
-      WHERE booked_by = $1
+      WHERE bookedBy = $1
     `;
     const values = [userId];
     const result = await pool.query(query, values);
@@ -110,10 +110,10 @@ const getSlotDetailByCoachAndTime = async (req, res) => {
   }
 
   const query = `
-    SELECT s.id, s.start_time, b.phone_number AS student_phone_number, u.phone_number AS coach_phone_number, b.user_name AS booked_by_name, u.user_name, r.score, r.notes, s.course_info
+    SELECT s.id, s.startTime, b.phoneNumber AS studentPhoneNumber, u.phoneNumber AS coachPhoneNumber, b.userName AS bookedByName, u.userName, r.score, r.notes, s.courseInfo
     FROM slots s
-    INNER JOIN users u ON s.coach_id = u.user_id
-    LEFT JOIN users b ON s.booked_by = b.user_id
+    INNER JOIN users u ON s.coachId = u.userId
+    LEFT JOIN users b ON s.bookedyId = b.userId
     LEFT JOIN reviews r ON s.id = r.slot_id
     WHERE u.user_id = $1 AND s.start_time = $2;
   `;
@@ -132,25 +132,25 @@ const getSlotDetailByCoachAndTime = async (req, res) => {
 };
 
 const bookSession = async (req, res) => {
-  const { user_name, slot_id } = req.body;
+  const { userName, slotId } = req.body;
 
-  if (!user_name || !slot_id) {
+  if (!userName || !slotId) {
     return res.status(400).json({ message: "slotId and userId are required" });
   }
 
   try {
-    const studentId = await findUserIdByName(user_name);
+    const studentId = await findUserIdByName(userName);
     if (!studentId) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const updateQuery = `
       UPDATE slots
-      SET booked_by = $1
+      SET bookedBy = $1
       WHERE id = $2
       RETURNING *;
     `;
-    const updateResult = await pool.query(updateQuery, [studentId, slot_id]);
+    const updateResult = await pool.query(updateQuery, [studentId, slotId]);
 
     if (updateResult.rows.length === 0) {
       return res.status(404).json({ message: "Slot not found" });
@@ -167,17 +167,17 @@ const bookSession = async (req, res) => {
 };
 
 const leaveFeedback = async (req, res) => {
-  const { slot_id, score, notes } = req.body;
+  const { slotId, score, notes } = req.body;
 
-  if (!slot_id) {
+  if (!slotId) {
     return res.status(400).json({ message: "slotId are required" });
   }
 
   try {
     const insertQuery = `
-    INSERT INTO reviews (slot_id, score, notes) VALUES ($1, $2, $3)
+    INSERT INTO reviews (slotId, score, notes) VALUES ($1, $2, $3)
     RETURNING *;`;
-    const result = await pool.query(insertQuery, [slot_id, score, notes]);
+    const result = await pool.query(insertQuery, [slotId, score, notes]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "reviews not found" });
