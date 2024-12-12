@@ -143,7 +143,7 @@ const getSlotDetailByCoachAndTime = async (req, res) => {
     const slotInfo = result.rows[0];
 
     res.status(200).json({
-      id: slotInfo.slot_id,
+      slotId: slotInfo.slot_id,
       startTime: slotInfo.start_time,
       studentPhoneNumber: slotInfo.student_phone_number,
       coachPhoneNumber: slotInfo.coach_phone_number,
